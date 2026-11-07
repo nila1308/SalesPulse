@@ -19,7 +19,7 @@ from flask import (
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from services.forecasting import forecast_product
-from services.uci_database import get_uci_db
+from services.uci_database import get_uci_db, init_uci_db
 
 
 # =========================================================
@@ -49,8 +49,8 @@ app.config["SECRET_KEY"] = os.environ.get(
     "SECRET_KEY", "local-development-key-change-before-deployment"
 )
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
-
-
+# Initialize UCI database tables when the application starts
+init_uci_db()
 # =========================================================
 # DATABASE CONNECTION
 # =========================================================
