@@ -324,8 +324,8 @@ def data_management():
     with get_uci_db() as db:
 
         total_records = db.execute(
-            "SELECT COUNT(*) FROM transactions"
-        ).fetchone()[0]
+    "SELECT COUNT(*) AS total FROM transactions"
+).fetchone()["total"]
 
         import_history = db.execute("""
             SELECT

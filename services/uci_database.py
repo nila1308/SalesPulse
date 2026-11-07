@@ -1,42 +1,60 @@
 
-import sqlite3
-from pathlib import Path
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-DB_PATH = BASE_DIR / "database" / "online_retail.db"
+import os
+import psycopg
+from psycopg.rows import dict_row
 
 
 def get_uci_db():
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    """
+    Connect to the Neon PostgreSQL database.
+    Uses the same DATABASE_URL as the main SalesPulse app.
+    """
 
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    database_url = (
+        os.environ.get("DATABASE_URL")
+        or os.environ.get("DATABASE_URL_POOLED")
+    )
+
+    if not database_url:
+        raise RuntimeError(
+            "DATABASE_URL was not found. Check your environment variables."
+        )
+
+    conn = psycopg.connect(
+        database_url,
+        row_factory=dict_row
+    )
 
     return conn
 
 
 def init_uci_db():
+    """
+    Create UCI Online Retail tables in Neon.
+    Existing records and tables are preserved.
+    """
+
     conn = get_uci_db()
 
     try:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS transactions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id BIGSERIAL PRIMARY KEY,
                 invoice_no TEXT,
                 stock_code TEXT,
                 description TEXT,
                 quantity INTEGER,
                 invoice_date TEXT,
-                unit_price REAL,
+                unit_price DOUBLE PRECISION,
                 customer_id TEXT,
                 country TEXT,
-                line_total REAL
+                line_total DOUBLE PRECISION
             )
         """)
 
         conn.execute("""
             CREATE TABLE IF NOT EXISTS import_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id BIGSERIAL PRIMARY KEY,
                 source_file TEXT NOT NULL,
                 imported_at TEXT NOT NULL,
                 total_rows INTEGER NOT NULL,
@@ -60,7 +78,12 @@ def init_uci_db():
         """)
 
         conn.commit()
-        print("UCI database tables created successfully.")
+
+        print("UCI PostgreSQL tables initialized successfully.")
+
+    except Exception:
+        conn.rollback()
+        raise
 
     finally:
         conn.close()
