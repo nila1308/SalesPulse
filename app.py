@@ -4,9 +4,11 @@ from functools import wraps
 from io import BytesIO, StringIO
 import csv
 import os
-import sqlite3
+from contextlib import contextmanager
+from pathlib import Path
 
-import numpy as np
+import psycopg
+from psycopg.rows import dict_row
 import pandas as pd
 
 from flask import (
@@ -25,11 +27,26 @@ from services.uci_database import get_uci_db
 # =========================================================
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-DB_PATH = os.path.join(BASE_DIR, "database", "sales_dss.db")
+# Load local .env values without requiring python-dotenv.
+# Render supplies its environment variables through the dashboard.
+ENV_FILE = Path(BASE_DIR) / ".env"
+if ENV_FILE.exists():
+    for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            os.environ.setdefault(key, value)
+
+DATABASE_URL = (
+    os.environ.get("DATABASE_URL")
+    or os.environ.get("DATABASE_URL_POOLED")
+)
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get(
-    "SECRET_KEY", "change-this-development-key"
+    "SECRET_KEY", "local-development-key-change-before-deployment"
 )
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
 
@@ -38,14 +55,17 @@ app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
 # DATABASE CONNECTION
 # =========================================================
 
+@contextmanager
 def get_db():
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    """Open a PostgreSQL connection and commit/rollback safely."""
+    if not DATABASE_URL:
+        raise RuntimeError(
+            "Database URL is missing. Set DATABASE_URL or "
+            "DATABASE_URL_POOLED in your .env file / Render environment."
+        )
 
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-
-    return conn
+    with psycopg.connect(DATABASE_URL, row_factory=dict_row) as conn:
+        yield conn
 
 
 # =========================================================
@@ -53,175 +73,12 @@ def get_db():
 # =========================================================
 
 def init_db():
-
+    """
+    Verify the migrated Neon database is reachable.
+    The schema and existing records were migrated already; do not reseed.
+    """
     with get_db() as db:
-
-        db.executescript("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            role TEXT NOT NULL DEFAULT 'admin'
-        );
-
-        CREATE TABLE IF NOT EXISTS products (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            category TEXT NOT NULL DEFAULT 'General',
-            price REAL NOT NULL DEFAULT 0,
-            stock INTEGER NOT NULL DEFAULT 0,
-            reorder_level INTEGER NOT NULL DEFAULT 5,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS sales (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id INTEGER NOT NULL,
-            sale_date TEXT NOT NULL,
-            quantity INTEGER NOT NULL CHECK(quantity > 0),
-            unit_price REAL NOT NULL CHECK(unit_price >= 0),
-            total REAL NOT NULL,
-            FOREIGN KEY(product_id) REFERENCES products(id)
-                ON DELETE CASCADE
-        );
-
-        CREATE TABLE IF NOT EXISTS forecasts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id INTEGER NOT NULL,
-            model TEXT NOT NULL,
-            forecast_date TEXT NOT NULL,
-            predicted_quantity REAL NOT NULL,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(product_id) REFERENCES products(id)
-                ON DELETE CASCADE
-        );
-        """)
-
-        # Create Admin account
-        user = db.execute(
-            "SELECT id FROM users WHERE username='admin'"
-        ).fetchone()
-
-        if not user:
-            db.execute(
-                """
-                INSERT INTO users(username, password_hash, role)
-                VALUES (?, ?, ?)
-                """,
-                (
-                    "admin",
-                    generate_password_hash("admin123"),
-                    "admin"
-                )
-            )
-
-        # Create Manager account
-        manager = db.execute(
-            "SELECT id FROM users WHERE username='manager'"
-        ).fetchone()
-
-        if not manager:
-            db.execute(
-                """
-                INSERT INTO users(username, password_hash, role)
-                VALUES (?, ?, ?)
-                """,
-                (
-                    "manager",
-                    generate_password_hash("manager123"),
-                    "manager"
-                )
-            )
-
-        # Create Analyst account
-        analyst = db.execute(
-            "SELECT id FROM users WHERE username='analyst'"
-        ).fetchone()
-
-        if not analyst:
-            db.execute(
-                """
-                INSERT INTO users(username, password_hash, role)
-                VALUES (?, ?, ?)
-                """,
-                (
-                    "analyst",
-                    generate_password_hash("analyst123"),
-                    "analyst"
-                )
-            )
-
-        # Insert sample demo data only when products table is empty
-        count = db.execute(
-            "SELECT COUNT(*) AS n FROM products"
-        ).fetchone()["n"]
-
-        if count == 0:
-
-            sample = [
-                ("Wireless Mouse", "Electronics", 599, 42, 10),
-                ("Notebook", "Stationery", 80, 18, 20),
-                ("Water Bottle", "Accessories", 249, 65, 15),
-                ("USB-C Cable", "Electronics", 299, 12, 15),
-                ("Desk Lamp", "Home", 899, 8, 8),
-            ]
-
-            db.executemany(
-                """
-                INSERT INTO products(
-                    name, category, price, stock, reorder_level
-                )
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                sample
-            )
-
-            product_ids = [
-                r["id"]
-                for r in db.execute(
-                    "SELECT id FROM products ORDER BY id"
-                ).fetchall()
-            ]
-
-            today = datetime.today().date()
-            rng = np.random.default_rng(12)
-
-            for idx, pid in enumerate(product_ids):
-
-                base = [5, 12, 4, 7, 2][idx]
-                price = sample[idx][2]
-
-                for day in range(120):
-
-                    d = today - timedelta(days=119 - day)
-
-                    qty = max(
-                        0,
-                        int(
-                            base
-                            + 2 * np.sin(day / 8)
-                            + rng.normal(0, 1.5)
-                        )
-                    )
-
-                    if qty:
-
-                        db.execute(
-                            """
-                            INSERT INTO sales(
-                                product_id, sale_date,
-                                quantity, unit_price, total
-                            )
-                            VALUES (?, ?, ?, ?, ?)
-                            """,
-                            (
-                                pid,
-                                d.isoformat(),
-                                qty,
-                                price,
-                                qty * price
-                            )
-                        )
+        db.execute("SELECT 1")
 
 
 # =========================================================
@@ -276,7 +133,7 @@ def login():
         with get_db() as db:
 
             user = db.execute(
-                "SELECT * FROM users WHERE username=?",
+                "SELECT * FROM users WHERE username=%s",
                 (username,)
             ).fetchone()
 
@@ -360,7 +217,7 @@ def dashboard():
                 sale_date,
                 SUM(total) revenue
             FROM sales
-            WHERE sale_date >= date('now', '-29 day')
+            WHERE sale_date >= TO_CHAR(CURRENT_DATE - INTERVAL '29 days', 'YYYY-MM-DD')
             GROUP BY sale_date
             ORDER BY sale_date
         """).fetchall()
@@ -569,21 +426,20 @@ def user_management():
                 flash("Password must contain at least 6 characters.", "danger")
 
             else:
-                try:
-                    password_hash = generate_password_hash(password)
+                password_hash = generate_password_hash(password)
 
-                    db.execute(
-                        """
-                        INSERT INTO users (username, password_hash, role)
-                        VALUES (?, ?, ?)
-                        """,
-                        (username, password_hash, role)
-                    )
+                inserted = db.execute(
+                    """
+                    INSERT INTO users (username, password_hash, role)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (username) DO NOTHING
+                    """,
+                    (username, password_hash, role)
+                )
 
-                    db.commit()
+                if inserted.rowcount:
                     flash("User created successfully.", "success")
-
-                except sqlite3.IntegrityError:
+                else:
                     flash("That username already exists.", "danger")
 
         users = db.execute("""
@@ -642,9 +498,9 @@ def products():
                     db.execute(
                         """
                         UPDATE products
-                        SET name=?, category=?, price=?,
-                            stock=?, reorder_level=?
-                        WHERE id=?
+                        SET name=%s, category=%s, price=%s,
+                            stock=%s, reorder_level=%s
+                        WHERE id=%s
                         """,
                         (
                             name,
@@ -668,7 +524,7 @@ def products():
                         INSERT INTO products(
                             name, category, price, stock, reorder_level
                         )
-                        VALUES (?, ?, ?, ?, ?)
+                        VALUES (%s, %s, %s, %s, %s)
                         """,
                         (
                             name,
@@ -716,7 +572,7 @@ def delete_product(pid):
     with get_db() as db:
 
         db.execute(
-            "DELETE FROM products WHERE id=?",
+            "DELETE FROM products WHERE id=%s",
             (pid,)
         )
 
@@ -758,7 +614,7 @@ def sales():
                     raise ValueError()
 
                 exists = db.execute(
-                    "SELECT id FROM products WHERE id=?",
+                    "SELECT id FROM products WHERE id=%s",
                     (pid,)
                 ).fetchone()
 
@@ -771,7 +627,7 @@ def sales():
                         product_id, sale_date,
                         quantity, unit_price, total
                     )
-                    VALUES (?, ?, ?, ?, ?)
+                    VALUES (%s, %s, %s, %s, %s)
                     """,
                     (
                         pid,
@@ -785,8 +641,8 @@ def sales():
                 db.execute(
                     """
                     UPDATE products
-                    SET stock=MAX(0, stock-?)
-                    WHERE id=?
+                    SET stock=GREATEST(0, stock-%s)
+                    WHERE id=%s
                     """,
                     (qty, pid)
                 )
@@ -882,7 +738,7 @@ def upload_sales():
                     qty <= 0
                     or price < 0
                     or not db.execute(
-                        "SELECT id FROM products WHERE id=?",
+                        "SELECT id FROM products WHERE id=%s",
                         (pid,)
                     ).fetchone()
                 ):
@@ -897,7 +753,7 @@ def upload_sales():
                         product_id, sale_date,
                         quantity, unit_price, total
                     )
-                    VALUES (?, ?, ?, ?, ?)
+                    VALUES (%s, %s, %s, %s, %s)
                     """,
                     (
                         pid,
@@ -911,8 +767,8 @@ def upload_sales():
                 db.execute(
                     """
                     UPDATE products
-                    SET stock=MAX(0, stock-?)
-                    WHERE id=?
+                    SET stock=GREATEST(0, stock-%s)
+                    WHERE id=%s
                     """,
                     (qty, pid)
                 )
@@ -968,25 +824,29 @@ def forecast():
                 pid = int(selected_product)
 
                 p = db.execute(
-                    "SELECT * FROM products WHERE id = ?",
+                    "SELECT * FROM products WHERE id = %s",
                     (pid,)
                 ).fetchone()
 
                 if not p:
                     raise ValueError("Selected product was not found.")
 
-                history = pd.read_sql_query(
+                history_rows = db.execute(
                     """
                     SELECT
                         sale_date,
                         SUM(quantity) AS quantity
                     FROM sales
-                    WHERE product_id = ?
+                    WHERE product_id = %s
                     GROUP BY sale_date
                     ORDER BY sale_date
                     """,
-                    db,
-                    params=(pid,)
+                    (pid,)
+                ).fetchall()
+
+                history = pd.DataFrame(
+                    history_rows,
+                    columns=["sale_date", "quantity"]
                 )
 
                 result = forecast_product(
@@ -999,7 +859,7 @@ def forecast():
                 db.execute(
                     """
                     DELETE FROM forecasts
-                    WHERE product_id = ? AND model = ?
+                    WHERE product_id = %s AND model = %s
                     """,
                     (pid, model)
                 )
@@ -1013,7 +873,7 @@ def forecast():
                             forecast_date,
                             predicted_quantity
                         )
-                        VALUES (?, ?, ?, ?)
+                        VALUES (%s, %s, %s, %s)
                         """,
                         (
                             pid,
@@ -1065,7 +925,7 @@ def inventory():
                         SELECT SUM(quantity)
                         FROM sales s
                         WHERE s.product_id=p.id
-                        AND s.sale_date >= date('now', '-30 day')
+                        AND s.sale_date >= TO_CHAR(CURRENT_DATE - INTERVAL '30 days', 'YYYY-MM-DD')
                     ),
                     0
                 ) recent_units
@@ -1149,7 +1009,7 @@ def export_sales():
     ])
 
     writer.writerows([
-        tuple(r) for r in rows
+        tuple(r.values()) for r in rows
     ])
 
     return Response(
@@ -1187,8 +1047,8 @@ def export_pdf():
             SELECT
                 p.name,
                 p.category,
-                COALESCE(SUM(s.quantity), 0),
-                COALESCE(SUM(s.total), 0)
+                COALESCE(SUM(s.quantity), 0) AS units,
+                COALESCE(SUM(s.total), 0) AS revenue
             FROM products p
             LEFT JOIN sales s ON s.product_id=p.id
             GROUP BY p.id
@@ -1208,10 +1068,10 @@ def export_pdf():
         ["Product", "Category", "Units sold", "Revenue"]
     ] + [
         [
-            r[0],
-            r[1],
-            str(r[2]),
-            f"₹{r[3]:,.2f}"
+            r["name"],
+            r["category"],
+            str(r["units"]),
+            f"₹{r['revenue']:,.2f}"
         ]
         for r in rows
     ]
@@ -1298,7 +1158,7 @@ def insights():
             FROM products p
             LEFT JOIN sales s
                 ON s.product_id=p.id
-                AND s.sale_date >= date('now', '-30 day')
+                AND s.sale_date >= TO_CHAR(CURRENT_DATE - INTERVAL '30 days', 'YYYY-MM-DD')
             GROUP BY p.id
             ORDER BY units DESC
         """).fetchall()
@@ -1349,10 +1209,8 @@ def insights():
 
 if __name__ == "__main__":
 
-    init_db()
-
     app.run(
-        host="127.0.0.1",
+        host="0.0.0.0",
         port=5001,
         debug=False,
         use_reloader=False
