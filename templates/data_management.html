@@ -1,0 +1,127 @@
+
+{% extends "base.html" %}
+{% block title %}Data Import & Management · SalesPulse{% endblock %}
+
+{% block content %}
+
+<div class="page-heading">
+    <div>
+        <span class="eyebrow">DATA WORKSPACE</span>
+        <h1>Data Import & Management</h1>
+        <p>Monitor imported datasets and review your Online Retail transactions.</p>
+    </div>
+    <span class="tag tag-blue">DATA CENTRE</span>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="metric-card metric-blue">
+            <div class="metric-top">Total records <i class="bi bi-database"></i></div>
+            <h3>{{ total_records }}</h3>
+            <small>Records in Online Retail database</small>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="metric-card metric-teal">
+            <div class="metric-top">Successful imports <i class="bi bi-check-circle"></i></div>
+            <h3>{{ import_history|selectattr('status', 'equalto', 'SUCCESS')|list|length }}</h3>
+            <small>Completed data imports</small>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="metric-card metric-purple">
+            <div class="metric-top">Recent transactions <i class="bi bi-receipt"></i></div>
+            <h3>{{ recent_transactions|length }}</h3>
+            <small>Latest records displayed below</small>
+        </div>
+    </div>
+</div>
+
+<div class="panel mb-4">
+    <div class="panel-head">
+        <div>
+            <h5>Import history</h5>
+            <p>Previously imported files and their status.</p>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead>
+                <tr>
+                    <th>Source file</th>
+                    <th>Import date</th>
+                    <th>Total rows</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in import_history %}
+                <tr>
+                    <td class="fw-semibold">{{ item.source_file }}</td>
+                    <td>{{ item.imported_at }}</td>
+                    <td>{{ item.total_rows }}</td>
+                    <td>
+                        {% if item.status == 'SUCCESS' %}
+                        <span class="tag tag-teal">SUCCESS</span>
+                        {% else %}
+                        <span class="tag tag-orange">{{ item.status }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" class="empty-state">No import history found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-head">
+        <div>
+            <h5>Recent transactions</h5>
+            <p>Latest 20 records from the Online Retail dataset.</p>
+        </div>
+        <span class="tag tag-blue">ONLINE RETAIL</span>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead>
+                <tr>
+                    <th>Invoice</th>
+                    <th>Stock code</th>
+                    <th>Description</th>
+                    <th>Quantity</th>
+                    <th>Date</th>
+                    <th>Unit price</th>
+                    <th>Country</th>
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in recent_transactions %}
+                <tr>
+                    <td>{{ item.invoice_no }}</td>
+                    <td>{{ item.stock_code }}</td>
+                    <td>{{ item.description }}</td>
+                    <td>{{ item.quantity }}</td>
+                    <td>{{ item.invoice_date }}</td>
+                    <td>£{{ "%.2f"|format(item.unit_price) }}</td>
+                    <td>{{ item.country }}</td>
+                    <td class="fw-semibold">£{{ "%.2f"|format(item.line_total) }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" class="empty-state">No transactions available.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}

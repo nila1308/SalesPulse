@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% block title %}Dashboard · SalesPulse{% endblock %}
+{% block content %}
+<div class="page-heading"><div><span class="eyebrow">OVERVIEW</span><h1>Dashboard</h1><p>Here’s what’s happening across your sales activity.</p></div><a class="btn btn-primary" href="{{ url_for('sales') }}"><i class="bi bi-plus-lg me-2"></i>Add sale</a></div>
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3"><div class="metric-card metric-purple"><div class="metric-top"><span>Total revenue</span><i class="bi bi-currency-rupee"></i></div><h3>₹{{ "{:,.0f}".format(metrics.revenue) }}</h3><small>Across recorded transactions</small></div></div>
+  <div class="col-6 col-xl-3"><div class="metric-card metric-blue"><div class="metric-top"><span>Units sold</span><i class="bi bi-bag-check"></i></div><h3>{{ "{:,}".format(metrics.units) }}</h3><small>Total quantity sold</small></div></div>
+  <div class="col-6 col-xl-3"><div class="metric-card metric-teal"><div class="metric-top"><span>Active products</span><i class="bi bi-box-seam"></i></div><h3>{{ metrics.products }}</h3><small>Products with sales history</small></div></div>
+  <div class="col-6 col-xl-3"><div class="metric-card metric-orange"><div class="metric-top"><span>Low-stock items</span><i class="bi bi-exclamation-triangle"></i></div><h3>{{ low_stock }}</h3><small>At or below reorder level</small></div></div>
+</div>
+<div class="row g-3">
+  <div class="col-xl-8"><div class="panel h-100"><div class="panel-head"><div><h5>Revenue trend</h5><p>Daily revenue · recent 30 days</p></div><span class="tag tag-blue">SALES</span></div><div class="chart-wrap"><canvas id="salesChart"></canvas></div></div></div>
+  <div class="col-xl-4"><div class="panel h-100"><div class="panel-head"><div><h5>Revenue by category</h5><p>Category contribution</p></div></div><div class="chart-wrap chart-doughnut"><canvas id="categoryChart"></canvas></div><div class="legend-note">Based on recorded sales</div></div></div>
+  <div class="col-xl-7"><div class="panel"><div class="panel-head"><div><h5>Recent transactions</h5><p>Your latest recorded sales</p></div><a href="{{ url_for('sales') }}" class="text-link">View all <i class="bi bi-arrow-up-right"></i></a></div><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Product</th><th>Date</th><th>Units</th><th>Revenue</th></tr></thead><tbody>{% for r in recent %}<tr><td class="fw-semibold">{{ r.name }}</td><td>{{ r.sale_date }}</td><td>{{ r.quantity }}</td><td class="fw-semibold">₹{{ "{:,.0f}".format(r.total) }}</td></tr>{% else %}<tr><td colspan="4" class="empty-state">No transactions yet.</td></tr>{% endfor %}</tbody></table></div></div></div>
+  <div class="col-xl-5"><div class="panel h-100"><div class="panel-head"><div><h5>Quick insights</h5><p>Highlights from your records</p></div><i class="bi bi-stars insight-star"></i></div><div class="insight-item"><span class="insight-icon purple"><i class="bi bi-trophy"></i></span><div><b>Top-selling product</b><p>{{ best.name if best else 'No sales yet' }}{% if best %} · {{ best.units }} units{% endif %}</p></div></div><div class="insight-item"><span class="insight-icon orange"><i class="bi bi-box-seam"></i></span><div><b>Inventory attention</b><p>{{ low_stock }} product(s) need a stock check.</p></div></div><div class="insight-item"><span class="insight-icon teal"><i class="bi bi-graph-up-arrow"></i></span><div><b>Next step</b><p>Generate a product forecast to plan upcoming demand.</p></div></div><a href="{{ url_for('forecast') }}" class="btn btn-soft w-100 mt-2">Explore demand forecast <i class="bi bi-arrow-right ms-2"></i></a></div></div>
+</div>
+{% endblock %}
+{% block scripts %}<script>
+const dailyLabels={{ daily|map(attribute='sale_date')|list|tojson }};
+const dailyValues={{ daily|map(attribute='revenue')|list|tojson }};
+const catLabels={{ category|map(attribute='category')|list|tojson }};
+const catValues={{ category|map(attribute='revenue')|list|tojson }};
+makeRevenueChart('salesChart',dailyLabels,dailyValues);
+makeDoughnutChart('categoryChart',catLabels,catValues);
+</script>{% endblock %}

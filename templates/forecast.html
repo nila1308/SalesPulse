@@ -1,0 +1,232 @@
+
+{% extends "base.html" %}
+{% block title %}Demand Forecast · SalesPulse{% endblock %}
+
+{% block content %}
+
+<div class="page-heading">
+    <div>
+        <span class="eyebrow">PREDICTIVE ANALYTICS</span>
+        <h1>Demand Forecast</h1>
+        <p>Estimate upcoming product demand using multiple forecasting algorithms.</p>
+    </div>
+    <span class="tag tag-purple">
+        <i class="bi bi-stars me-1"></i> FORECAST LAB
+    </span>
+</div>
+
+<div class="panel mb-4">
+    <div class="panel-head">
+        <div>
+            <h5>Configure your forecast</h5>
+            <p>Select a product, forecasting model and prediction period.</p>
+        </div>
+    </div>
+
+    <form method="post" class="row g-3 align-items-end">
+
+        <div class="col-md-4">
+            <label class="form-label">Select product</label>
+            <select class="form-select" name="product_id" required>
+                <option value="">Choose product</option>
+                {% for p in products %}
+                <option value="{{ p.id }}"
+                    {% if selected_product|string == p.id|string %}selected{% endif %}>
+                    {{ p.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="col-md-4">
+            <label class="form-label">Forecasting model</label>
+            <select class="form-select" name="model" required>
+                {% for model in [
+                    'Moving Average',
+                    'Weighted Moving Average',
+                    'Exponential Smoothing',
+                    'Linear Regression',
+                    'Random Forest',
+                    'Seasonal Naive'
+                ] %}
+                <option value="{{ model }}"
+                    {% if selected_model == model %}selected{% endif %}>
+                    {{ model }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="col-md-2">
+            <label class="form-label">Days ahead</label>
+            <select class="form-select" name="horizon" required>
+                {% for n in [7, 15, 30, 90] %}
+                <option value="{{ n }}"
+                    {% if horizon|string == n|string %}selected{% endif %}>
+                    {{ n }} days
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-primary w-100">
+                <i class="bi bi-graph-up-arrow me-1"></i>
+                Generate
+            </button>
+        </div>
+
+    </form>
+</div>
+
+{% if result %}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+        <h4 class="mb-1">{{ result.product_name }}</h4>
+        <span class="muted">
+            Model: {{ selected_model }} · {{ horizon }}-day outlook
+        </span>
+    </div>
+    <span class="tag tag-teal">GENERATED</span>
+</div>
+
+<div class="row g-3 mb-4">
+
+    <div class="col-6 col-xl-3">
+        <div class="metric-card metric-purple">
+            <div class="metric-top">
+                Predicted total
+                <i class="bi bi-activity"></i>
+            </div>
+            <h3>{{ "%.1f"|format(result.forecast_values|sum) }}</h3>
+            <small>Expected units</small>
+        </div>
+    </div>
+
+    <div class="col-6 col-xl-3">
+        <div class="metric-card metric-blue">
+            <div class="metric-top">
+                MAE
+                <i class="bi bi-bullseye"></i>
+            </div>
+            <h3>{{ result.mae if result.mae is not none else 'N/A' }}</h3>
+            <small>Mean absolute error</small>
+        </div>
+    </div>
+
+    <div class="col-6 col-xl-3">
+        <div class="metric-card metric-teal">
+            <div class="metric-top">
+                RMSE
+                <i class="bi bi-graph-down"></i>
+            </div>
+            <h3>{{ result.rmse if result.rmse is not none else 'N/A' }}</h3>
+            <small>Root mean squared error</small>
+        </div>
+    </div>
+
+    <div class="col-6 col-xl-3">
+        <div class="metric-card metric-orange">
+            <div class="metric-top">
+                MAPE
+                <i class="bi bi-percent"></i>
+            </div>
+            <h3>
+                {% if result.mape is not none %}
+                    {{ result.mape }}%
+                {% else %}
+                    N/A
+                {% endif %}
+            </h3>
+            <small>Mean absolute percentage error</small>
+        </div>
+    </div>
+
+</div>
+
+<div class="panel mb-4">
+    <div class="panel-head">
+        <div>
+            <h5>Historical sales and future demand</h5>
+            <p>Actual daily units compared with predicted demand.</p>
+        </div>
+        <span class="tag tag-blue">FORECAST CHART</span>
+    </div>
+
+    <div class="chart-wrap">
+        <canvas id="forecastChart"></canvas>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-head">
+        <div>
+            <h5>Forecast details</h5>
+            <p>Expected product demand by date.</p>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Predicted quantity</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in result.rows %}
+                <tr>
+                    <td>{{ r.date }}</td>
+                    <td class="fw-semibold">{{ r.prediction }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="2" class="empty-state">
+                        No forecast records available.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% else %}
+
+<div class="empty-forecast">
+    <div class="empty-icon">
+        <i class="bi bi-graph-up-arrow"></i>
+    </div>
+
+    <h4>Your forecast starts here</h4>
+
+    <p>
+        Select a product, choose one of six forecasting models
+        and generate a demand outlook.
+    </p>
+
+    <span class="muted">
+        Tip: forecasts work best with several weeks or months
+        of consistent sales history.
+    </span>
+</div>
+
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+{% if result %}
+<script>
+    makeForecastChart(
+        'forecastChart',
+        {{ result.dates|tojson }},
+        {{ result.actual|tojson }},
+        {{ result.forecast_dates|tojson }},
+        {{ result.forecast_values|tojson }}
+    );
+</script>
+{% endif %}
+{% endblock %}

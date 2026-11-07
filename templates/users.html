@@ -1,0 +1,142 @@
+
+{% extends "base.html" %}
+{% block title %}User Management · SalesPulse{% endblock %}
+
+{% block content %}
+
+<div class="page-heading">
+    <div>
+        <span class="eyebrow">ADMINISTRATION</span>
+        <h1>User Management</h1>
+        <p>Create and manage SalesPulse user accounts and access roles.</p>
+    </div>
+    <span class="tag tag-purple">ADMIN ONLY</span>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="metric-card metric-blue">
+            <div class="metric-top">Total users <i class="bi bi-people"></i></div>
+            <h3>{{ users|length }}</h3>
+            <small>Registered accounts</small>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="metric-card metric-teal">
+            <div class="metric-top">Administrators <i class="bi bi-shield-check"></i></div>
+            <h3>{{ users|selectattr('role', 'equalto', 'admin')|list|length }}</h3>
+            <small>Full access accounts</small>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="metric-card metric-purple">
+            <div class="metric-top">Analysts <i class="bi bi-bar-chart"></i></div>
+            <h3>{{ users|selectattr('role', 'equalto', 'analyst')|list|length }}</h3>
+            <small>Analytics access accounts</small>
+        </div>
+    </div>
+</div>
+
+<div class="panel mb-4">
+    <div class="panel-head">
+        <div>
+            <h5>Create new user</h5>
+            <p>Add a user and assign their access role.</p>
+        </div>
+    </div>
+
+    <form method="POST" class="row g-3">
+        <div class="col-md-4">
+            <label class="form-label">Username</label>
+            <input
+                type="text"
+                name="username"
+                class="form-control"
+                placeholder="Enter username"
+                required
+            >
+        </div>
+
+        <div class="col-md-4">
+            <label class="form-label">Password</label>
+            <input
+                type="password"
+                name="password"
+                class="form-control"
+                placeholder="Minimum 6 characters"
+                minlength="6"
+                required
+            >
+        </div>
+
+        <div class="col-md-2">
+            <label class="form-label">User role</label>
+            <select name="role" class="form-select" required>
+                <option value="analyst">Analyst</option>
+                <option value="manager">Manager</option>
+                <option value="admin">Admin</option>
+            </select>
+        </div>
+
+        <div class="col-md-2 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary w-100">
+                <i class="bi bi-person-plus me-1"></i> Create user
+            </button>
+        </div>
+    </form>
+</div>
+
+<div class="panel">
+    <div class="panel-head">
+        <div>
+            <h5>Registered users</h5>
+            <p>Current user accounts and assigned roles.</p>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Username</th>
+                    <th>Role</th>
+                    <th>Access level</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user.id }}</td>
+                    <td class="fw-semibold">{{ user.username }}</td>
+                    <td>
+                        {% if user.role == 'admin' %}
+                            <span class="tag tag-purple">ADMIN</span>
+                        {% elif user.role == 'manager' %}
+                            <span class="tag tag-blue">MANAGER</span>
+                        {% else %}
+                            <span class="tag tag-teal">ANALYST</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if user.role == 'admin' %}
+                            Full access
+                        {% elif user.role == 'manager' %}
+                            Sales management
+                        {% else %}
+                            View and analytics
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" class="empty-state">No users found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}

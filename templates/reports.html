@@ -1,0 +1,5 @@
+{% extends "base.html" %}{% block title %}Reports · SalesPulse{% endblock %}
+{% block content %}
+<div class="page-heading"><div><span class="eyebrow">REPORT CENTRE</span><h1>Reports</h1><p>Review product performance and export your records.</p></div><div class="d-flex gap-2"><a class="btn btn-outline-primary" href="{{ url_for('export_sales') }}"><i class="bi bi-filetype-csv me-2"></i>CSV</a><a class="btn btn-primary" href="{{ url_for('export_pdf') }}"><i class="bi bi-filetype-pdf me-2"></i>PDF report</a></div></div>
+<div class="panel"><div class="panel-head"><div><h5>Product performance</h5><p>Lifetime sales summary by product</p></div></div><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Product</th><th>Category</th><th>Transactions</th><th>Units sold</th><th>Revenue</th></tr></thead><tbody>{% for r in rows %}<tr><td class="fw-semibold">{{ r.name }}</td><td>{{ r.category }}</td><td>{{ r.transactions }}</td><td>{{ r.units }}</td><td>₹{{ "{:,.2f}".format(r.revenue) }}</td></tr>{% else %}<tr><td colspan="5" class="empty-state">No report data available.</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

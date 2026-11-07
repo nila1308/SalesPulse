@@ -1,0 +1,128 @@
+
+{% extends "base.html" %}
+{% block title %}Sign in · SalesPulse{% endblock %}
+
+{% block auth_content %}
+<div class="login-wrap">
+  <div class="login-card">
+
+    <div class="login-brand">
+      <span class="brand-mark">
+        <i class="bi bi-graph-up-arrow"></i>
+      </span>
+      <span>Sales<span class="brand-light">Pulse</span></span>
+    </div>
+
+    <div class="login-illustration">
+      <i class="bi bi-bar-chart-line-fill"></i>
+      <span class="bubble bubble-one"></span>
+      <span class="bubble bubble-two"></span>
+    </div>
+
+    <span class="eyebrow">WELCOME BACK</span>
+    <h2>Make smarter sales decisions.</h2>
+
+    <p class="muted">
+      Sign in to explore your sales performance and demand outlook.
+    </p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('login') }}" class="mt-4">
+
+      <label for="username" class="form-label">Username</label>
+      <input
+        type="text"
+        class="form-control form-control-lg mb-3"
+        id="username"
+        name="username"
+        placeholder="Enter username"
+        required
+        autofocus
+      >
+
+      <label for="password" class="form-label">Password</label>
+
+<div class="password-wrapper position-relative mb-3">
+
+  <input
+    type="password"
+    class="form-control form-control-lg"
+    id="password"
+    name="password"
+    placeholder="Enter password"
+    required
+  >
+
+  <button
+    type="button"
+    class="password-toggle"
+    id="togglePassword"
+    aria-label="Show password"
+    aria-pressed="false"
+  >
+    <i class="bi bi-eye" id="togglePasswordIcon"></i>
+  </button>
+
+</div>
+
+
+      <button type="submit" class="btn btn-primary btn-lg w-100">
+        Sign In <i class="bi bi-arrow-right ms-2"></i>
+      </button>
+
+    </form>
+
+    <div class="demo-login mt-4">
+
+      <strong>DEMO ACCESS ACCOUNTS</strong>
+      <hr>
+
+      <div>👑 <b>Admin:</b> admin / admin123</div>
+      <div>📊 <b>Manager:</b> manager / manager123</div>
+      <div>📈 <b>Analyst:</b> analyst / analyst123</div>
+
+    </div>
+
+  </div>
+
+  <div class="login-caption">
+    Turn historical sales into confident decisions.
+  </div>
+
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    const passwordInput = document.getElementById("password");
+    const toggleButton = document.getElementById("togglePassword");
+    const toggleIcon = document.getElementById("togglePasswordIcon");
+
+    toggleButton.addEventListener("click", function () {
+
+        const isHidden = passwordInput.type === "password";
+
+        passwordInput.type = isHidden ? "text" : "password";
+
+        toggleIcon.classList.toggle("bi-eye", !isHidden);
+        toggleIcon.classList.toggle("bi-eye-slash", isHidden);
+
+        toggleButton.setAttribute("aria-label",
+            isHidden ? "Hide password" : "Show password"
+        );
+
+        toggleButton.setAttribute("aria-pressed", String(isHidden));
+
+    });
+
+});
+</script>
+
+{% endblock %}

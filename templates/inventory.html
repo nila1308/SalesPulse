@@ -1,0 +1,5 @@
+{% extends "base.html" %}{% block title %}Inventory · SalesPulse{% endblock %}
+{% block content %}
+<div class="page-heading"><div><span class="eyebrow">STOCK CONTROL</span><h1>Inventory</h1><p>Monitor stock levels against reorder thresholds.</p></div></div>
+<div class="panel"><div class="panel-head"><div><h5>Inventory overview</h5><p>Recent demand reflects the last 30 days of sales</p></div><span class="tag tag-orange">STOCK WATCH</span></div><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Product</th><th>Category</th><th>Current stock</th><th>Reorder level</th><th>30-day units sold</th><th>Status</th></tr></thead><tbody>{% for p in products %}<tr><td class="fw-semibold">{{ p.name }}</td><td>{{ p.category }}</td><td>{{ p.stock }}</td><td>{{ p.reorder_level }}</td><td>{{ p.recent_units }}</td><td>{% if p.stock<=p.reorder_level %}<span class="status status-low">Reorder needed</span>{% else %}<span class="status status-ok">Healthy</span>{% endif %}</td></tr>{% else %}<tr><td colspan="6" class="empty-state">No products found.</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}
